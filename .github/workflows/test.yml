@@ -4,11 +4,11 @@ on:
   push: # Kod push edildiğinde çalışır
     branches:
       - main # main branch'ine push'larda
-      - deneme-branch # deneme-branch'ine push'larda
+      - deneme # deneme-branch'ine push'larda
   pull_request: # Pull request açıldığında veya güncellendiğinde çalışır
     branches:
       - main # main branch'ine açılan PR'larda
-      - deneme-branch # deneme-branch'ine açılan PR'larda
+      - deneme # deneme-branch'ine açılan PR'larda
 
 jobs:
   pre-commit: # pre-commit kontrollerini çalıştıran job
