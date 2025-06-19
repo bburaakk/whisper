@@ -3,9 +3,12 @@ on:
   push:
     branches:
       - main
+      - deneme # YENİ: Bu satırı ekleyerek 'deneme' dalına yapılan push'ları da dinlemesini sağla
   pull_request:
     branches:
       - main
+      # Eğer 'deneme' dalına açılan pull request'lerin de workflow'u tetiklemesini istersen, aşağıdaki satırı da ekleyebilirsin:
+      # - deneme 
 
 jobs:
   pre-commit:
@@ -75,5 +78,14 @@ jobs:
       - run: conda install -n test ffmpeg python=${{ matrix.python-version }}
       - uses: actions/checkout@v4
       - run: echo "$CONDA/envs/test/bin" >> $GITHUB_PATH
-      - run: pip3 install .["dev"] ${{ matrix.numpy-requirement }} torch==${{ matrix.pytorch-version }}+cpu --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
-      - run: pytest --durations=0 -vv -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' -m 'not requires_cuda'
+      - name: Bağımlılıkları Kur (pytest-cov dahil)
+        run: pip3 install .["dev"] ${{ matrix.numpy-requirement }} torch==${{ matrix.pytorch-version }}+cpu --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple pytest-cov
+      - name: Testleri Çalıştır ve Kapsam Raporu Oluştur
+        run: pytest --cov=. --cov-report=xml --durations=0 -vv -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' -m 'not requires_cuda'
+      - name: Codecov'a Rapor Yükle
+        uses: codecov/codecov-action@v3
+        with:
+          # ÖNEMLİ: Eğer projen AÇIK KAYNAK (Public) ise aşağıdaki 'token' satırını SİLİN.
+          # token: ${{ secrets.CODECOV_TOKEN }}
+
+          files: ./coverage.xml
