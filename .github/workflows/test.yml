@@ -1,34 +1,31 @@
-name: test
+name: test # Workflow'unuzun adı
 
 on:
-  push:
+  push: # Kod push edildiğinde çalışır
     branches:
-      - main
-      - deneme
-  pull_request:
+      - main # main branch'ine push'larda
+      - deneme-branch # deneme-branch'ine push'larda
+  pull_request: # Pull request açıldığında veya güncellendiğinde çalışır
     branches:
-      - main
+      - main # main branch'ine açılan PR'larda
+      - deneme-branch # deneme-branch'ine açılan PR'larda
 
 jobs:
-  pre-commit:
-    runs-on: ubuntu-latest
+  pre-commit: # pre-commit kontrollerini çalıştıran job
+    runs-on: ubuntu-latest # Ubuntu işletim sistemi üzerinde çalışır
     steps:
-      - uses: actions/checkout@v4
-
-      - name: Fetch base branch
+      - uses: actions/checkout@v4 # Deponuzu çekin
+      - name: Fetch base branch # Git geçmişini getir
         run: git fetch origin ${{ github.base_ref }}
-
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5 # Python ortamını kur
         with:
           python-version: "3.9"
           architecture: x64
-
-      - name: Get pip cache dir
+      - name: Get pip cache dir # pip cache dizinini al
         id: pip-cache
         run: |
           echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
-
-      - name: pip/pre-commit cache
+      - name: pip/pre-commit cache # pip ve pre-commit için cache kullan
         uses: actions/cache@v4
         with:
           path: |
@@ -37,19 +34,18 @@ jobs:
           key: ${{ runner.os }}-pip-pre-commit-${{ hashFiles('**/.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pip-pre-commit
-
-      - name: pre-commit
+      - name: pre-commit # pre-commit hook'larını çalıştır
         run: |
-          pip install --upgrade pre-commit
-          pre-commit install --install-hooks
-          pre-commit run --all-files
+          pip install --upgrade pre-commit # pre-commit'i yükle/güncelle
+          pre-commit install --install-hooks # Hook'ları kur
+          pre-commit run --all-files # Tüm dosyalarda hook'ları çalıştır
 
-  whisper-test:
-    needs: pre-commit
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
+  whisper-test: # Whisper testlerini ve Codecov yüklemesini yapan job
+    needs: pre-commit # Bu job'ın pre-commit job'ı bittikten sonra çalışmasını sağlar
+    runs-on: ubuntu-latest # Ubuntu işletim sistemi üzerinde çalışır
+    strategy: # Farklı Python/PyTorch versiyonları ile paralel çalıştırma stratejisi
+      fail-fast: false # Bir matris kombinasyonu başarısız olsa bile diğerlerinin devam etmesini sağlar
+      matrix: # Test edilecek Python/PyTorch/Numpy kombinasyonları
         include:
           - python-version: '3.8'
             pytorch-version: 1.10.1
@@ -78,39 +74,26 @@ jobs:
           - python-version: '3.13'
             pytorch-version: 2.5.1
             numpy-requirement: "'numpy'"
-
     steps:
-      - uses: conda-incubator/setup-miniconda@v3
-
-      - name: Install dependencies
-        run: conda install -n test ffmpeg python=${{ matrix.python-version }}
-
-      - uses: actions/checkout@v4
-
-      - name: Add Conda to PATH
-        run: echo "$CONDA/envs/test/bin" >> $GITHUB_PATH
-
-      - name: Install Python dependencies
+      - uses: conda-incubator/setup-miniconda@v3 # Miniconda'yı kurar
+      - run: conda install -n test ffmpeg python=${{ matrix.python-version }} # Conda ortamında gerekli paketleri yükler
+      - uses: actions/checkout@v4 # Deponuzu çekin
+      - run: echo "$CONDA/envs/test/bin" >> $GITHUB_PATH # Conda ortamının bin dizinini PATH'e ekler
+      - name: Gerekli Paketleri Yükle (pytest-cov dahil) # Python bağımlılıklarını yükler
         run: |
-          pip install .["dev"] ${{ matrix.numpy-requirement }} \
-            torch==${{ matrix.pytorch-version }}+cpu \
-            --index-url https://download.pytorch.org/whl/cpu \
-            --extra-index-url https://pypi.org/simple
-
-      - name: Run tests with coverage
+          # pytest-cov, test kapsamı raporu oluşturmak için gereklidir
+          pip3 install .["dev"] pytest-cov ${{ matrix.numpy-requirement }} torch==${{ matrix.pytorch-version }}+cpu --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple
+      - name: Testleri Çalıştır ve Kapsam Raporu Oluştur # Testleri çalıştırır ve kapsam raporunu XML formatında kaydeder
+        # --cov=. mevcut dizindeki Python dosyalarının kapsamını ölçer
+        # --cov-report=xml kapsam raporunu Codecov için uygun XML formatında (.coverage.xml) kaydeder
         run: |
-          pytest --cov=your_package_name \
-                 --cov-report=xml \
-                 --cov-report=term \
-                 --durations=0 -vv \
-                 -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' \
-                 -m 'not requires_cuda'
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v4
+          pytest --cov=. --cov-report=xml --durations=0 -vv -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' -m 'not requires_cuda'
+      - name: Codecov'a Yükle # Oluşturulan kapsam raporunu Codecov.io'ya yükler
+        uses: codecov/codecov-action@v4 # Codecov'un resmi GitHub Action'ı
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}  # Public repo için gerekmez
-          files: coverage.xml
-          flags: unittests
-          name: codecov-whisper
-          fail_ci_if_error: false
+          # Codecov token'ınızı GitHub Secrets'ınıza 'CODECOV_TOKEN' adıyla eklediğinizden emin olun.
+          # Bu token, Codecov'un deponuza rapor gönderme yetkisi için gereklidir.
+          token: ${{ secrets.CODECOV_TOKEN }}
+          # Kapsam raporunuzun yolu. pytest-cov genellikle .coverage.xml oluşturur ve bu otomatik algılanır.
+          # file: ./coverage.xml # Genellikle manuel olarak belirtmeye gerek yoktur.
+          # flags: pytest # İsteğe bağlı: Codecov raporlarınızı etiketlemek için bayraklar kullanabilirsiniz.
