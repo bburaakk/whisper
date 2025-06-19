@@ -1,30 +1,33 @@
 name: test
+
 on:
   push:
     branches:
       - main
-      - deneme # YENİ: Bu satırı ekleyerek 'deneme' dalına yapılan push'ları da dinlemesini sağla
+      - deneme
   pull_request:
     branches:
       - main
-      # Eğer 'deneme' dalına açılan pull request'lerin de workflow'u tetiklemesini istersen, aşağıdaki satırı da ekleyebilirsin:
-      # - deneme 
 
 jobs:
   pre-commit:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Fetch base branch
         run: git fetch origin ${{ github.base_ref }}
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.9"
           architecture: x64
+
       - name: Get pip cache dir
         id: pip-cache
         run: |
           echo "dir=$(pip cache dir)" >> $GITHUB_OUTPUT
+
       - name: pip/pre-commit cache
         uses: actions/cache@v4
         with:
@@ -34,11 +37,13 @@ jobs:
           key: ${{ runner.os }}-pip-pre-commit-${{ hashFiles('**/.pre-commit-config.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pip-pre-commit
+
       - name: pre-commit
         run: |
           pip install --upgrade pre-commit
           pre-commit install --install-hooks
           pre-commit run --all-files
+
   whisper-test:
     needs: pre-commit
     runs-on: ubuntu-latest
@@ -73,19 +78,39 @@ jobs:
           - python-version: '3.13'
             pytorch-version: 2.5.1
             numpy-requirement: "'numpy'"
+
     steps:
       - uses: conda-incubator/setup-miniconda@v3
-      - run: conda install -n test ffmpeg python=${{ matrix.python-version }}
-      - uses: actions/checkout@v4
-      - run: echo "$CONDA/envs/test/bin" >> $GITHUB_PATH
-      - name: Bağımlılıkları Kur (pytest-cov dahil)
-        run: pip3 install .["dev"] ${{ matrix.numpy-requirement }} torch==${{ matrix.pytorch-version }}+cpu --index-url https://download.pytorch.org/whl/cpu --extra-index-url https://pypi.org/simple pytest-cov
-      - name: Testleri Çalıştır ve Kapsam Raporu Oluştur
-        run: pytest --cov=. --cov-report=xml --durations=0 -vv -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' -m 'not requires_cuda'
-      - name: Codecov'a Rapor Yükle
-        uses: codecov/codecov-action@v3
-        with:
-          # ÖNEMLİ: Eğer projen AÇIK KAYNAK (Public) ise aşağıdaki 'token' satırını SİLİN.
-          # token: ${{ secrets.CODECOV_TOKEN }}
 
-          files: ./coverage.xml
+      - name: Install dependencies
+        run: conda install -n test ffmpeg python=${{ matrix.python-version }}
+
+      - uses: actions/checkout@v4
+
+      - name: Add Conda to PATH
+        run: echo "$CONDA/envs/test/bin" >> $GITHUB_PATH
+
+      - name: Install Python dependencies
+        run: |
+          pip install .["dev"] ${{ matrix.numpy-requirement }} \
+            torch==${{ matrix.pytorch-version }}+cpu \
+            --index-url https://download.pytorch.org/whl/cpu \
+            --extra-index-url https://pypi.org/simple
+
+      - name: Run tests with coverage
+        run: |
+          pytest --cov=your_package_name \
+                 --cov-report=xml \
+                 --cov-report=term \
+                 --durations=0 -vv \
+                 -k 'not test_transcribe or test_transcribe[tiny] or test_transcribe[tiny.en]' \
+                 -m 'not requires_cuda'
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}  # Public repo için gerekmez
+          files: coverage.xml
+          flags: unittests
+          name: codecov-whisper
+          fail_ci_if_error: false
